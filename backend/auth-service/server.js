@@ -6,8 +6,11 @@ const connectDB = require('./config/db');
 const authRoutes = require('./routes/authRoutes');
 
 const app = express();
-app.use(cors({ origin: "http://localhost:3000", credentials: true }));
+// Orígenes permitidos (separados por coma). En Azure: URL de Static Web Apps.
+const allowedOrigins = (process.env.CORS_ORIGIN || "http://localhost:3000").split(",").map((o) => o.trim());
+app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json());
+app.get("/health", (req, res) => res.send("ok"));
 
 // Connect DB then start
 connectDB().then(() => {

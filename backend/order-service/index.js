@@ -43,4 +43,5 @@ io.on("connection", (socket) => {
 });
 
 const PORT = process.env.PORT || 5005;
-app.listen(PORT, () => console.log(`Order Service running on port ${PORT}`));
+// Se usa server.listen (no app.listen) para que Socket.IO comparta el puerto HTTP.
+server.listen(PORT, () => console.log(`Order Service running on port ${PORT}`));

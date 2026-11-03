@@ -14,7 +14,9 @@ connectDB();
 const app = express();
 
 // Enable CORS for your frontend
-app.use(cors({ origin: "http://localhost:3000" }));
+// Orígenes permitidos (separados por coma). En Azure: URL de Static Web Apps.
+const allowedOrigins = (process.env.CORS_ORIGIN || "http://localhost:3000").split(",").map((o) => o.trim());
+app.use(cors({ origin: allowedOrigins }));
 
 // IMPORTANT: Mount the webhook route with raw body parsing BEFORE JSON parser middleware.
 app.use("/api/payment/webhook", express.raw({ type: "application/json" }), webhookRoutes);

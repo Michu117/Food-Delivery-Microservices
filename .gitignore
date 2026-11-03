@@ -1,0 +1,4 @@
+# Variables de entorno locales (no subir secretos)
+.env
+!frontend/.env
+node_modules/

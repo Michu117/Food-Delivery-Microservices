@@ -4,7 +4,9 @@ import { io } from "socket.io-client";
 import axios from "axios";
 import "./DriverDashboard.css";
 
-const socket = io("http://localhost:5003");
+const socket = io(process.env.REACT_APP_SOCKET_ORIGIN || "http://localhost:5003", {
+  path: process.env.REACT_APP_SOCKET_PATH || "/socket.io",
+});
 
 export default function DriverDashboard() {
   const navigate = useNavigate();

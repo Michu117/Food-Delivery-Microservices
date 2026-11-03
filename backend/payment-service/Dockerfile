@@ -1,23 +1,15 @@
-# Use a specific version of the Node.js slim image
-FROM node:18.16.0-slim
-
-# Set working directory
+# Imagen de producción para Azure Container Apps
+FROM node:20-slim
 WORKDIR /app
+ENV NODE_ENV=production
+ENV PORT=5004
 
-# Copy package.json and package-lock.json
+# Dependencias primero (aprovecha la caché de capas)
 COPY package*.json ./
+RUN npm install --omit=dev --no-audit --no-fund && npm cache clean --force
 
-# Install dependencies
-RUN npm install
-
-# Copy the rest of the application code
 COPY . .
 
-# # Set environment variables file
-# ENV NODE_ENV=production
-
-# Expose the application port
+USER node
 EXPOSE 5004
-
-# Start the application
-CMD ["npm", "start"]
+CMD ["node", "server.js"]

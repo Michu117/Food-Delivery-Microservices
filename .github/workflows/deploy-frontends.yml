@@ -1,0 +1,87 @@
+# Compila los dos frontends (clientes/restaurantes y repartidores) apuntando al
+# API Gateway y los publica en Azure Static Web Apps (plan Free).
+#
+# Configuración previa en GitHub (Settings > Secrets and variables > Actions):
+#   Variables: GATEWAY_URL            p. ej. https://ca-gateway.<dominio>.azurecontainerapps.io
+#              STRIPE_PUBLISHABLE_KEY clave pública de Stripe en modo prueba (pk_test_...)
+#   Secretos:  AZURE_SWA_TOKEN_WEB, AZURE_SWA_TOKEN_DRIVER (tokens de despliegue de cada Static Web App)
+name: Frontends (Static Web Apps)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, azure-deploy]
+    paths:
+      - "frontend/**"
+      - "delivery-service/frontend/**"
+      - ".github/workflows/deploy-frontends.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: web
+            dir: frontend
+            token: AZURE_SWA_TOKEN_WEB
+          - name: driver
+            dir: delivery-service/frontend
+            token: AZURE_SWA_TOKEN_DRIVER
+    defaults:
+      run:
+        working-directory: ${{ matrix.dir }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verificar configuración
+        env:
+          GATEWAY_URL: ${{ vars.GATEWAY_URL }}
+        run: |
+          if [ -z "$GATEWAY_URL" ]; then
+            echo "::error::Falta la variable GATEWAY_URL (URL pública del gateway)."; exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Reemplazar URLs de localhost por el API Gateway
+        env:
+          GW: ${{ vars.GATEWAY_URL }}
+        run: |
+          GW="${GW%/}"
+          find src -type f \( -name '*.js' -o -name '*.jsx' \) -exec sed -i \
+            -e "s#http://localhost:5001#${GW}/auth#g" \
+            -e "s#http://localhost:5002#${GW}/restaurant#g" \
+            -e "s#http://localhost:5003#${GW}/delivery#g" \
+            -e "s#http://localhost:5004#${GW}/payment#g" \
+            -e "s#http://localhost:5005#${GW}/order#g" {} +
+          echo "URLs restantes con localhost:"; grep -rn "localhost:50" src || echo "ninguna"
+
+      - name: Instalar dependencias
+        run: npm ci --legacy-peer-deps || npm install --legacy-peer-deps
+
+      - name: Compilar
+        env:
+          CI: "false"
+          REACT_APP_SOCKET_ORIGIN: ${{ vars.GATEWAY_URL }}
+          REACT_APP_SOCKET_PATH: /delivery/socket.io
+          STRIPE_KEY: ${{ vars.STRIPE_PUBLISHABLE_KEY }}
+        run: |
+          # Solo se sobrescribe la clave de Stripe si la variable está definida
+          if [ -n "$STRIPE_KEY" ]; then export REACT_APP_STRIPE_PUBLISHABLE_KEY="$STRIPE_KEY"; fi
+          npm run build
+
+      - name: Publicar en Azure Static Web Apps
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets[matrix.token] }}
+          action: upload
+          app_location: ${{ matrix.dir }}/build
+          skip_app_build: true
+          skip_api_build: true

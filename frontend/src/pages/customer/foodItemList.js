@@ -30,7 +30,7 @@ function FoodItemList() {
     const fetchRestaurantDetails = async () => {
       try {
         const res = await axios.get(
-          `http://localhost:5001/api/superadmin/restaurant/${restaurantId}`,
+          `http://localhost:5002/api/superadmin/restaurant/${restaurantId}`,
           {
             headers: {
               Authorization: `Bearer ${localStorage.getItem("token")}`,
