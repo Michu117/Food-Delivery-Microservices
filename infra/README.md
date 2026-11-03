@@ -16,6 +16,7 @@ Si quiere ver la creación recurso por recurso en el portal, siga
 | `03-datos-y-secretos.sh` | Cosmos DB para MongoDB (free tier), Key Vault y secretos | 0 (Key Vault, centavos) |
 | `04-aplicaciones.sh` | Log Analytics, entorno ACA en la VNet, identidad, 2 Static Web Apps, 6 Container Apps | 0 dentro de la cuota gratuita |
 | `05-actualizar-imagenes.sh` | Nueva revisión con la última imagen | 0 |
+| `pausar.sh` / `reanudar.sh` | Detiene o inicia las 6 Container Apps | 0 |
 | `99-eliminar-todo.sh` | Borra todo | — |
 
 ## Paso 0. Antes de empezar
@@ -110,6 +111,17 @@ La primera petición a cada servicio tarda unos segundos porque arranca desde ce
 - **Las imágenes subidas por restaurantes desaparecen.** Se guardan en el disco del
   contenedor, que se reinicia; en una fase posterior se moverían a Blob Storage.
 - **Logs:** `az containerapp logs show -g rg-skydish-app -n ca-auth --follow`
+
+## Pausar y reanudar
+
+```bash
+./pausar.sh     # detiene las 6 Container Apps (la API deja de responder)
+./reanudar.sh   # las vuelve a iniciar; datos y configuración se conservan
+```
+
+También se puede hacer desde el portal: cada Container App → *Overview* → **Stop** / **Start**.
+Mientras está en pausa, Cosmos DB, Key Vault, la red y las Static Web Apps se mantienen
+(capas gratuitas o sin costo), así que reanudar tarda menos de un minuto.
 
 ## Dejar de gastar créditos
 
