@@ -21,6 +21,7 @@ Si quiere ver la creación recurso por recurso en el portal, siga
 | `04-aplicaciones.sh` | Log Analytics, entorno ACA en la VNet, identidad, 2 cuentas de Storage (sitios web estáticos), 6 Container Apps | 0 dentro de la cuota gratuita |
 | `05-actualizar-imagenes.sh` | Nueva revisión con la última imagen | 0 |
 | `06-usuarios-y-grupos.sh` | Grupos de seguridad de Entra ID con roles RBAC (admins, devs, red, datos, lectura) | 0 |
+| `pruebas.sh` | Pruebas de extremo a extremo (APIs, Stripe, Socket.IO) y de red/seguridad | 0 |
 | `pausar.sh` / `reanudar.sh` | Detiene o inicia las 6 Container Apps | 0 |
 | `99-eliminar-todo.sh` | Borra todo | — |
 
