@@ -43,7 +43,7 @@ else
   for region in "${candidates[@]}"; do
     log "Creando Cosmos DB para MongoDB (free tier) en $region (tarda 5-10 minutos)"
     if az cosmosdb create -g "$RG_DATA" -n "$COSMOS" \
-        --kind MongoDB --server-version 6.0 \
+        --kind MongoDB --server-version 4.2 \
         --enable-free-tier true \
         --default-consistency-level Session \
         --locations regionName="$region" failoverPriority=0 isZoneRedundant=False \
@@ -68,6 +68,15 @@ else
   if [ -z "$COSMOS_REGION" ]; then
     echo "Ninguna región tuvo capacidad para Cosmos DB. Intente más tarde o solicite acceso: https://aka.ms/cosmosdbquota" >&2
     exit 1
+  fi
+
+  # Algunas regiones crean la cuenta en 3.6 aunque se pida otra versión; los servicios
+  # necesitan al menos 4.2 (wire version 8), así que se fuerza la actualización.
+  if [ "$(az cosmosdb show -g "$RG_DATA" -n "$COSMOS" --query apiProperties.serverVersion -o tsv)" != "4.2" ]; then
+    warn "La cuenta se creó con otra versión; actualizando a 4.2"
+    az resource update --ids "$(az cosmosdb show -g "$RG_DATA" -n "$COSMOS" --query id -o tsv)" \
+      --set properties.apiProperties.serverVersion=4.2 -o none
+    ok "Versión de la API de MongoDB: 4.2"
   fi
 
   log "Restringiendo de nuevo $RG_DATA a la región usada ($COSMOS_REGION)"
