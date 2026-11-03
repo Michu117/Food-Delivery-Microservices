@@ -9,22 +9,69 @@ source "$(dirname "$0")/common.sh"
 SNET_ACA_ID="$(snet_id "$SNET_ACA")"
 
 # ------------------------------------------------------------- Cosmos DB
-log "Creando Cosmos DB para MongoDB con free tier (tarda 5-10 minutos)"
-if az cosmosdb show -g "$RG_DATA" -n "$COSMOS" >/dev/null 2>&1; then
+# Cosmos DB puede no tener capacidad en una región ("high demand"). Se prueban las
+# regiones permitidas en orden; el resto de recursos sigue en $LOCATION y la cuenta
+# solo acepta conexiones desde snet-aca (los Service Endpoints de Cosmos DB
+# funcionan aunque la cuenta esté en otra región).
+DATA_SCOPE="/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RG_DATA"
+ALLOWED_LOCATIONS_ID="$(az policy definition list --query "[?policyType=='BuiltIn' && displayName=='Allowed locations'].name | [0]" -o tsv)"
+
+set_data_locations() { # Actualiza la política de ubicaciones de rg-<prefijo>-data
+  local json
+  json="$(printf '"%s",' "$@")"
+  az policy assignment create --name "solo-region-$RG_DATA" \
+    --display-name "SkyDish: ubicaciones permitidas ($RG_DATA)" \
+    --policy "$ALLOWED_LOCATIONS_ID" --scope "$DATA_SCOPE" \
+    --params "{\"listOfAllowedLocations\": {\"value\": [${json%,}]}}" -o none
+}
+
+state="$(az cosmosdb show -g "$RG_DATA" -n "$COSMOS" --query provisioningState -o tsv 2>/dev/null || true)"
+if [ "$state" = "Succeeded" ]; then
   ok "$COSMOS ya existe"
 else
-  # Solo acepta conexiones desde snet-aca (Service Endpoint + regla de red)
-  az cosmosdb create -g "$RG_DATA" -n "$COSMOS" \
-    --kind MongoDB --server-version 4.2 \
-    --enable-free-tier true \
-    --default-consistency-level Session \
-    --locations regionName="$LOCATION" failoverPriority=0 isZoneRedundant=False \
-    --public-network-access Enabled \
-    --enable-virtual-network true \
-    --virtual-network-rules "$SNET_ACA_ID" \
-    --tags "${TAGS[@]}" -o none \
-  || { echo "Error al crear Cosmos DB. Si el mensaje menciona 'free tier', ya existe otra cuenta gratuita en la suscripción." >&2; exit 1; }
-  ok "$COSMOS"
+  if [ -n "$state" ]; then
+    warn "Se encontró $COSMOS en estado '$state'; se elimina para reintentar"
+    az cosmosdb delete -g "$RG_DATA" -n "$COSMOS" --yes -o none || true
+  fi
+
+  read -ra candidates <<< "$COSMOS_LOCATIONS"
+  log "Permitiendo temporalmente en $RG_DATA las regiones: ${candidates[*]}"
+  set_data_locations "${candidates[@]}"
+  sleep 30   # propagación de la política
+
+  COSMOS_REGION=""
+  for region in "${candidates[@]}"; do
+    log "Creando Cosmos DB para MongoDB (free tier) en $region (tarda 5-10 minutos)"
+    if az cosmosdb create -g "$RG_DATA" -n "$COSMOS" \
+        --kind MongoDB --server-version 4.2 \
+        --enable-free-tier true \
+        --default-consistency-level Session \
+        --locations regionName="$region" failoverPriority=0 isZoneRedundant=False \
+        --public-network-access Enabled \
+        --enable-virtual-network true \
+        --virtual-network-rules "$SNET_ACA_ID" \
+        --tags "${TAGS[@]}" -o none --only-show-errors 2> cosmos-error.log; then
+      COSMOS_REGION="$region"
+      ok "$COSMOS creado en $region"
+      break
+    fi
+    if grep -qi "free tier" cosmos-error.log; then
+      cat cosmos-error.log >&2
+      echo "Ya existe otra cuenta de Cosmos DB con free tier en la suscripción." >&2
+      exit 1
+    fi
+    warn "Sin capacidad en $region; probando la siguiente región"
+    az cosmosdb delete -g "$RG_DATA" -n "$COSMOS" --yes -o none 2>/dev/null || true
+  done
+  rm -f cosmos-error.log
+
+  if [ -z "$COSMOS_REGION" ]; then
+    echo "Ninguna región tuvo capacidad para Cosmos DB. Intente más tarde o solicite acceso: https://aka.ms/cosmosdbquota" >&2
+    exit 1
+  fi
+
+  log "Restringiendo de nuevo $RG_DATA a la región usada ($COSMOS_REGION)"
+  set_data_locations "$COSMOS_REGION"
 fi
 
 log "Creando base de datos '$COSMOS_DB' con 1000 RU/s compartidas (dentro de la capa gratuita)"
