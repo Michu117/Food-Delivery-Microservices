@@ -76,7 +76,7 @@ en *Inbound/Outbound security rules*:
 
 **Azure Cosmos DB → + Create → Azure Cosmos DB for MongoDB → Request unit (RU) based**:
 
-- Nombre `cosmos-skydish-<sufijo>`, versión 4.2, **Apply Free Tier Discount: Apply**.
+- Nombre `cosmos-skydish-<sufijo>`, versión **6.0**, **Apply Free Tier Discount: Apply**.
 - *Networking*: **Selected networks** → agregue `vnet-skydish-dev / snet-aca`.
 - Luego *Data Explorer* → **New Database** `skydish`, *Provision throughput* = 1000 RU/s (manual).
 - *Connection strings*: copie la cadena primaria y agregue `/skydish` antes del `?`.

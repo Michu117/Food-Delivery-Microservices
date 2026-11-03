@@ -43,7 +43,7 @@ else
   for region in "${candidates[@]}"; do
     log "Creando Cosmos DB para MongoDB (free tier) en $region (tarda 5-10 minutos)"
     if az cosmosdb create -g "$RG_DATA" -n "$COSMOS" \
-        --kind MongoDB --server-version 4.2 \
+        --kind MongoDB --server-version 6.0 \
         --enable-free-tier true \
         --default-consistency-level Session \
         --locations regionName="$region" failoverPriority=0 isZoneRedundant=False \
