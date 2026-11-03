@@ -53,14 +53,26 @@ check "Login de cliente (JWT)" "$([ -n "$CUSTOMER_TOKEN" ] && echo 0 || echo 1)"
 
 # ------------------------------------------------------------ restaurant
 log "3. Servicio restaurant"
-api POST /restaurant/api/restaurant/register "{\"name\":\"Restaurante Prueba $ID\",\"ownerName\":\"Grupo 4\",\"location\":\"Loja\",\"contactNumber\":\"072$ID\",\"email\":\"rest.$ID@skydish.test\",\"password\":\"Prueba123!\"}"
-check "Registrar restaurante" "$([ "$CODE" = 201 ] && echo 0 || echo 1)" "HTTP $CODE"
+# El registro exige foto de perfil (multipart/form-data); se usa una imagen PNG de 1x1
+IMG=/tmp/skydish-prueba.png
+echo "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==" | base64 -d > "$IMG"
+CODE="$(curl -s -m 120 -o /tmp/skydish-body -w "%{http_code}" -X POST "$GW/restaurant/api/restaurant/register" \
+  -F "name=Restaurante Prueba $ID" -F "ownerName=Grupo 4" -F "location=Loja" -F "contactNumber=072$ID" \
+  -F "email=rest.$ID@skydish.test" -F "password=Prueba123!" -F "profilePicture=@$IMG;type=image/png")"
+check "Registrar restaurante (con foto)" "$([ "$CODE" = 201 ] && echo 0 || echo 1)" "HTTP $CODE"
 api POST /restaurant/api/restaurant/login "{\"email\":\"rest.$ID@skydish.test\",\"password\":\"Prueba123!\"}"
 REST_TOKEN="$(echo "$BODY" | jq -r '.token // empty' 2>/dev/null)"
 check "Login de restaurante" "$([ -n "$REST_TOKEN" ] && echo 0 || echo 1)" "HTTP $CODE"
 api GET /restaurant/api/restaurant/profile "" "$REST_TOKEN"
 RESTAURANT_ID="$(echo "$BODY" | jq -r '._id // .restaurant._id // empty' 2>/dev/null)"
 check "Perfil de restaurante" "$([ "$CODE" = 200 ] && echo 0 || echo 1)" "HTTP $CODE"
+CODE="$(curl -s -m 120 -o /tmp/skydish-body -w "%{http_code}" -X POST "$GW/restaurant/api/food-items/create" \
+  -H "Authorization: Bearer $REST_TOKEN" -F "name=Hamburguesa $ID" -F "description=Prueba" \
+  -F "price=7.5" -F "category=Burgers" -F "image=@$IMG;type=image/png")"
+FOOD_IMG="$(jq -r '.newFoodItem.image // empty' /tmp/skydish-body 2>/dev/null)"
+check "Crear comida con imagen" "$([ "$CODE" = 201 ] && echo 0 || echo 1)" "HTTP $CODE"
+c=$(curl -s -m 60 -o /dev/null -w "%{http_code}" "$GW/restaurant$FOOD_IMG")
+check "Servir imagen subida" "$([ -n "$FOOD_IMG" ] && [ "$c" = 200 ] && echo 0 || echo 1)" "HTTP $c ${FOOD_IMG}"
 api GET /restaurant/api/food-items/all
 check "Catálogo público de comidas" "$([ "$CODE" = 200 ] && echo 0 || echo 1)" "HTTP $CODE"
 
@@ -121,4 +133,4 @@ echo "====================================================================="
 for r in "${RESULTS[@]}"; do IFS='|' read -r s n d <<< "$r"; printf ' %s %-40s %s\n' "$s" "$n" "$d"; done
 echo
 [ "$FAIL" -gt 0 ] && echo " Copie las líneas con ✘ para revisarlas." || echo " Todo funciona correctamente."
-rm -f /tmp/skydish-body
+rm -f /tmp/skydish-body /tmp/skydish-prueba.png
