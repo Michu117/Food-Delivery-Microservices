@@ -19,16 +19,18 @@ const CheckoutForm = () => {
   const API_BASE_URL = "http://localhost:5004";
 
   // Example order data – in production this comes dynamically from your Order Service.
-  const orderData = {
-    orderId: "ORDER00036",
-    userId: "USER67890",
+  // Pedido de demostración: se genera un ID único por visita para que el pago de
+  // prueba se pueda repetir (antes era fijo y solo funcionaba una vez).
+  const [orderData] = useState(() => ({
+    orderId: `ORDER-${Date.now()}`,
+    userId: "demo-skydish",
     amount: 43,
     currency: "usd",
-    firstName: "John",
-    lastName: "Doe",
-    email: "tharankaruchira18@gmail.com",
-    phone: "+94752504856",
-  };
+    firstName: "Cliente",
+    lastName: "SkyDish",
+    email: "cliente@skydish.test",
+    phone: "+593990000000",
+  }));
 
   useEffect(() => {
     createPaymentIntent();
