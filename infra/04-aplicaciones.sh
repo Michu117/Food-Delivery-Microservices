@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Paso 4: Log Analytics, entorno de Container Apps en la VNet, identidad administrada,
-# Static Web Apps y las 6 Container Apps (5 microservicios + gateway).
+# 2 sitios web estáticos en Storage y las 6 Container Apps (5 microservicios + gateway).
 #
 # Requisito: las imágenes ya deben existir en ghcr.io (workflow "Imágenes de contenedores").
 source "$(dirname "$0")/common.sh"
@@ -42,16 +42,26 @@ ok "$IDENTITY -> Key Vault Secrets User"
 warn "Esperando 60 s a que se propague el permiso..."
 sleep 60
 
-# ------------------------------------------------------- Static Web Apps
-log "Creando Static Web Apps (plan Free) para los dos frontends"
-for swa in "$SWA_WEB" "$SWA_DRIVER"; do
-  az staticwebapp show -g "$RG_APP" -n "$swa" >/dev/null 2>&1 || \
-    az staticwebapp create -g "$RG_APP" -n "$swa" -l "$SWA_LOCATION" --sku Free --tags "${TAGS[@]}" -o none
-  ok "$swa"
+# ------------------------------------------- Frontends (Storage static website)
+# Static Web Apps no está disponible en las regiones permitidas por Azure for Students,
+# así que cada frontend se publica como sitio web estático de una cuenta de Storage
+# (Standard LRS: unos centavos al mes por pocos MB).
+log "Creando cuentas de Storage para los dos frontends"
+for st in "$ST_WEB" "$ST_DRIVER"; do
+  az storage account show -g "$RG_APP" -n "$st" >/dev/null 2>&1 || \
+    az storage account create -g "$RG_APP" -n "$st" -l "$LOCATION" \
+      --sku Standard_LRS --kind StorageV2 --min-tls-version TLS1_2 \
+      --allow-blob-public-access false --https-only true --tags "${TAGS[@]}" -o none
+  key="$(az storage account keys list -g "$RG_APP" -n "$st" --query "[0].value" -o tsv)"
+  # index.html también como página 404 para que funcionen las rutas de React
+  az storage blob service-properties update --account-name "$st" --account-key "$key" \
+    --static-website --index-document index.html --404-document index.html -o none
+  ok "$st (sitio web estático habilitado)"
 done
-WEB_HOST="$(az staticwebapp show -g "$RG_APP" -n "$SWA_WEB" --query defaultHostname -o tsv)"
-DRIVER_HOST="$(az staticwebapp show -g "$RG_APP" -n "$SWA_DRIVER" --query defaultHostname -o tsv)"
-CORS_ORIGIN="https://$WEB_HOST,https://$DRIVER_HOST,http://localhost:3000"
+web_url() { az storage account show -g "$RG_APP" -n "$1" --query primaryEndpoints.web -o tsv | sed 's#/$##'; }
+WEB_URL="$(web_url "$ST_WEB")"
+DRIVER_URL="$(web_url "$ST_DRIVER")"
+CORS_ORIGIN="$WEB_URL,$DRIVER_URL,http://localhost:3000"
 
 # ------------------------------------------------------- Container Apps
 REGISTRY_ARGS=()
@@ -111,8 +121,16 @@ log "Desplegando el API Gateway con ingreso externo"
 deploy_app ca-gateway gateway 80 external
 GATEWAY_URL="https://$(az containerapp show -g "$RG_APP" -n ca-gateway --query properties.configuration.ingress.fqdn -o tsv)"
 
-WEB_TOKEN="$(az staticwebapp secrets list -g "$RG_APP" -n "$SWA_WEB" --query properties.apiKey -o tsv)"
-DRIVER_TOKEN="$(az staticwebapp secrets list -g "$RG_APP" -n "$SWA_DRIVER" --query properties.apiKey -o tsv)"
+# SAS de escritura para que GitHub Actions suba los archivos (válido 6 meses)
+EXPIRY="$(date -u -d '+180 days' '+%Y-%m-%dT%H:%MZ')"
+sas() {
+  local key
+  key="$(az storage account keys list -g "$RG_APP" -n "$1" --query "[0].value" -o tsv)"
+  az storage container generate-sas --account-name "$1" --account-key "$key" -n '$web' \
+    --permissions acdlrw --expiry "$EXPIRY" --https-only -o tsv
+}
+WEB_SAS="$(sas "$ST_WEB")"
+DRIVER_SAS="$(sas "$ST_DRIVER")"
 
 cat <<EOF
 
@@ -120,20 +138,22 @@ cat <<EOF
  Infraestructura lista
 =====================================================================
  API Gateway:        $GATEWAY_URL   (prueba: $GATEWAY_URL/health)
- Frontend clientes:  https://$WEB_HOST
- Frontend repartid.: https://$DRIVER_HOST
+ Frontend clientes:  $WEB_URL
+ Frontend repartid.: $DRIVER_URL
 
  Configure en GitHub (Settings > Secrets and variables > Actions):
    Variable GATEWAY_URL            = $GATEWAY_URL
+   Variable STORAGE_ACCOUNT_WEB    = $ST_WEB
+   Variable STORAGE_ACCOUNT_DRIVER = $ST_DRIVER
    Variable STRIPE_PUBLISHABLE_KEY = pk_test_... (opcional)
-   Secreto  AZURE_SWA_TOKEN_WEB    = (ver abajo)
-   Secreto  AZURE_SWA_TOKEN_DRIVER = (ver abajo)
- Luego ejecute el workflow "Frontends (Static Web Apps)".
+   Secreto  AZURE_STORAGE_SAS_WEB    = (ver abajo)
+   Secreto  AZURE_STORAGE_SAS_DRIVER = (ver abajo)
+ Luego ejecute el workflow "Frontends (Azure Storage)".
 
  Webhook de Stripe (modo prueba): $GATEWAY_URL/payment/api/payment/webhook
 
- Tokens de despliegue (no los comparta):
-   AZURE_SWA_TOKEN_WEB    = $WEB_TOKEN
-   AZURE_SWA_TOKEN_DRIVER = $DRIVER_TOKEN
+ Tokens SAS (vencen el $EXPIRY; no los comparta):
+   AZURE_STORAGE_SAS_WEB    = $WEB_SAS
+   AZURE_STORAGE_SAS_DRIVER = $DRIVER_SAS
 =====================================================================
 EOF

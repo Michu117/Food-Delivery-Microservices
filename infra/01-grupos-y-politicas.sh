@@ -4,8 +4,8 @@ source "$(dirname "$0")/common.sh"
 
 log "Registrando proveedores de recursos (solo la primera vez tarda unos minutos)"
 for ns in Microsoft.App Microsoft.OperationalInsights Microsoft.DocumentDB \
-          Microsoft.KeyVault Microsoft.Network Microsoft.Web Microsoft.ManagedIdentity \
-          Microsoft.PolicyInsights; do
+          Microsoft.KeyVault Microsoft.Network Microsoft.Storage Microsoft.ManagedIdentity \
+          Microsoft.PolicyInsights Microsoft.CloudShell; do
   az provider register --namespace "$ns" --wait >/dev/null
 done
 ok "Proveedores registrados"
@@ -25,9 +25,6 @@ NOT_ALLOWED_TYPES_ID="$(policy_id 'Not allowed resource types')"
 INHERIT_TAG_ID="$(policy_id 'Inherit a tag from the resource group if missing')"
 
 LOCATIONS_JSON="[\"$LOCATION\"]"
-if [ "$SWA_LOCATION" != "$LOCATION" ]; then
-  LOCATIONS_JSON="[\"$LOCATION\", \"$SWA_LOCATION\"]"
-fi
 
 # Servicios costosos que se bloquean para proteger los créditos
 BLOCKED_TYPES='[

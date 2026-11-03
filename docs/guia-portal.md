@@ -5,7 +5,7 @@ Esta guía crea **lo mismo que los scripts de `infra/`**, pero a mano en
 tomar capturas como evidencia. Puede combinar ambos métodos: por ejemplo, crear la
 red en el portal (pasos 1 a 4) y lo demás con `03` y `04`.
 
-> Valores usados: región `eastus2` (cámbiela por una permitida en su suscripción),
+> Valores usados: región `canadacentral` (debe estar entre las permitidas en su suscripción),
 > etiquetas `proyecto=skydish`, `entorno=dev`, `owner=grupo4` en **todos** los recursos.
 
 ## 1. Presupuesto y grupos de recursos
@@ -22,7 +22,7 @@ red en el portal (pasos 1 a 4) y lo demás con `03` y `04`.
 
 | Definición integrada | Parámetro |
 |---|---|
-| Allowed locations | su región (y la de Static Web Apps si es distinta) |
+| Allowed locations | su región |
 | Not allowed resource types | NAT gateways, Azure firewalls, Application gateways, Bastion hosts, Virtual machines, Container registries |
 | Inherit a tag from the resource group if missing | `proyecto` (en *Remediation* marque crear identidad administrada) |
 
@@ -120,18 +120,27 @@ Cree cinco apps con **Container Apps → + Create**, imagen
 En *Secrets* agregue referencias a Key Vault (`mongo-uri`, `jwt-secret` y, en `ca-payment`,
 los de Stripe, Twilio y Resend). En *Environment variables*: `PORT`, `MONGO_URI` →
 secreto `mongo-uri`, `JWT_SECRET` → secreto `jwt-secret`, `JWT_EXPIRES_IN=1d` y
-`CORS_ORIGIN` = URLs de las Static Web Apps separadas por coma.
+`CORS_ORIGIN` = URLs de los sitios web estáticos (paso 9) separadas por coma.
 
 Por último cree `ca-gateway` (imagen `skydish-gateway`, puerto **80**,
 *Ingress* = **Accepting traffic from anywhere**, escala 0 a 1). Su URL es la única pública.
 
 📸 Captura: lista de Container Apps mostrando que solo el gateway tiene URL pública.
 
-## 9. Static Web Apps (en `rg-skydish-app`)
+## 9. Frontends en Azure Storage (en `rg-skydish-app`)
 
-**Static Web Apps → + Create** (dos veces): `swa-skydish-web` y `swa-skydish-driver`,
-plan **Free**, *Deployment source* = **Other**. En cada una, *Manage deployment token* →
-copie el token y guárdelo en GitHub como `AZURE_SWA_TOKEN_WEB` / `AZURE_SWA_TOKEN_DRIVER`.
+Static Web Apps no está disponible en las regiones permitidas por Azure for Students,
+así que cada frontend se publica como sitio web estático de una cuenta de Storage.
+
+1. **Storage accounts → + Create** (dos veces): `stskydishweb<sufijo>` y `stskydishdrv<sufijo>`,
+   rendimiento **Standard**, redundancia **LRS**.
+2. En cada una: *Data management → Static website* → **Enabled**, *Index document* =
+   `index.html`, *Error document path* = `index.html`. Copie el *Primary endpoint* (URL del frontend).
+3. *Data storage → Containers → $web → Shared access tokens*: permisos Read, Add, Create,
+   Write, Delete y List, vencimiento en 6 meses → **Generate SAS token**. Guárdelo en GitHub
+   como `AZURE_STORAGE_SAS_WEB` / `AZURE_STORAGE_SAS_DRIVER`, y el nombre de cada cuenta como
+   variable `STORAGE_ACCOUNT_WEB` / `STORAGE_ACCOUNT_DRIVER`.
+
 Siga el paso 3 de [`infra/README.md`](../infra/README.md).
 
 ## Evidencias sugeridas para el informe

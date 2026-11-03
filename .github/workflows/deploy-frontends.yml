@@ -1,11 +1,13 @@
 # Compila los dos frontends (clientes/restaurantes y repartidores) apuntando al
-# API Gateway y los publica en Azure Static Web Apps (plan Free).
+# API Gateway y los publica como sitios web estáticos de Azure Storage.
+# (Static Web Apps no está disponible en las regiones permitidas por Azure for Students.)
 #
-# Configuración previa en GitHub (Settings > Secrets and variables > Actions):
-#   Variables: GATEWAY_URL            p. ej. https://ca-gateway.<dominio>.azurecontainerapps.io
-#              STRIPE_PUBLISHABLE_KEY clave pública de Stripe en modo prueba (pk_test_...)
-#   Secretos:  AZURE_SWA_TOKEN_WEB, AZURE_SWA_TOKEN_DRIVER (tokens de despliegue de cada Static Web App)
-name: Frontends (Static Web Apps)
+# Configuración previa en GitHub (Settings > Secrets and variables > Actions),
+# con los valores que imprime infra/04-aplicaciones.sh:
+#   Variables: GATEWAY_URL, STORAGE_ACCOUNT_WEB, STORAGE_ACCOUNT_DRIVER,
+#              STRIPE_PUBLISHABLE_KEY (opcional, pk_test_...)
+#   Secretos:  AZURE_STORAGE_SAS_WEB, AZURE_STORAGE_SAS_DRIVER
+name: Frontends (Azure Storage)
 
 on:
   workflow_dispatch:
@@ -28,10 +30,12 @@ jobs:
         include:
           - name: web
             dir: frontend
-            token: AZURE_SWA_TOKEN_WEB
+            account: STORAGE_ACCOUNT_WEB
+            sas: AZURE_STORAGE_SAS_WEB
           - name: driver
             dir: delivery-service/frontend
-            token: AZURE_SWA_TOKEN_DRIVER
+            account: STORAGE_ACCOUNT_DRIVER
+            sas: AZURE_STORAGE_SAS_DRIVER
     defaults:
       run:
         working-directory: ${{ matrix.dir }}
@@ -77,11 +81,19 @@ jobs:
           if [ -n "$STRIPE_KEY" ]; then export REACT_APP_STRIPE_PUBLISHABLE_KEY="$STRIPE_KEY"; fi
           npm run build
 
-      - name: Publicar en Azure Static Web Apps
-        uses: Azure/static-web-apps-deploy@v1
-        with:
-          azure_static_web_apps_api_token: ${{ secrets[matrix.token] }}
-          action: upload
-          app_location: ${{ matrix.dir }}/build
-          skip_app_build: true
-          skip_api_build: true
+      - name: Publicar en Azure Storage (contenedor $web)
+        env:
+          ACCOUNT: ${{ vars[matrix.account] }}
+          SAS: ${{ secrets[matrix.sas] }}
+        run: |
+          if [ -z "$ACCOUNT" ] || [ -z "$SAS" ]; then
+            echo "::error::Faltan la variable ${{ matrix.account }} o el secreto ${{ matrix.sas }}."; exit 1
+          fi
+          # index.html sin caché para que los cambios se vean de inmediato
+          az storage blob upload-batch --account-name "$ACCOUNT" --sas-token "$SAS" \
+            -d '$web' -s build --overwrite --only-show-errors \
+            --pattern '*' --content-cache-control "public, max-age=3600"
+          az storage blob upload --account-name "$ACCOUNT" --sas-token "$SAS" \
+            -c '$web' -n index.html -f build/index.html --overwrite --only-show-errors \
+            --content-type "text/html" --content-cache-control "no-cache"
+          echo "Publicado en https://$ACCOUNT.z9.web.core.windows.net (la URL exacta la muestra el script 04)"

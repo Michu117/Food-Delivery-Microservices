@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Pausa SkyDish: detiene las 6 Container Apps (5 microservicios + gateway).
 # Con las apps detenidas no hay consumo de cómputo ni solicitudes.
-# Cosmos DB (free tier), Key Vault, la red y las Static Web Apps (Free) se conservan
+# Cosmos DB (free tier), Key Vault, la red y los frontends en Storage se conservan
 # con sus datos y no generan costo apreciable mientras tanto.
 # Para reanudar: ./reanudar.sh
 source "$(dirname "$0")/common.sh"

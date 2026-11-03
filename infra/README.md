@@ -3,7 +3,11 @@
 Scripts de Azure CLI que crean la arquitectura de la propuesta del Grupo 4:
 SaaS sobre PaaS, VNet `10.20.0.0/16` con `snet-aca` (/26) y `snet-data` (/27),
 NSG, tablas de ruteo, Container Apps con escala a cero, Cosmos DB (free tier),
-Key Vault, Static Web Apps (Free) y Azure Policy.
+Key Vault, frontends como sitios web estáticos en Azure Storage y Azure Policy.
+
+> **Nota:** Static Web Apps (de la propuesta) no está disponible en las regiones que
+> Azure for Students permite a esta suscripción, así que los frontends se publican en
+> Azure Storage (sitio web estático, Standard LRS), que cuesta centavos al mes.
 
 **Costo esperado: 0 a 5 USD al mes.** Todo escala a cero cuando no se usa.
 Si quiere ver la creación recurso por recurso en el portal, siga
@@ -14,7 +18,7 @@ Si quiere ver la creación recurso por recurso en el portal, siga
 | `01-grupos-y-politicas.sh` | 3 grupos de recursos, Azure Policy, roles RBAC opcionales | 0 |
 | `02-red.sh` | VNet, 2 subredes, 2 NSG, 2 tablas de ruteo | 0 |
 | `03-datos-y-secretos.sh` | Cosmos DB para MongoDB (free tier), Key Vault y secretos | 0 (Key Vault, centavos) |
-| `04-aplicaciones.sh` | Log Analytics, entorno ACA en la VNet, identidad, 2 Static Web Apps, 6 Container Apps | 0 dentro de la cuota gratuita |
+| `04-aplicaciones.sh` | Log Analytics, entorno ACA en la VNet, identidad, 2 cuentas de Storage (sitios web estáticos), 6 Container Apps | 0 dentro de la cuota gratuita |
 | `05-actualizar-imagenes.sh` | Nueva revisión con la última imagen | 0 |
 | `pausar.sh` / `reanudar.sh` | Detiene o inicia las 6 Container Apps | 0 |
 | `99-eliminar-todo.sh` | Borra todo | — |
@@ -23,8 +27,7 @@ Si quiere ver la creación recurso por recurso en el portal, siga
 
 1. Verifique sus regiones permitidas: **Portal → Policy → Assignments →
    "Allowed resource deployment regions" → Parameters**. Elija una y escríbala en
-   `config.env` (`LOCATION`). Para `SWA_LOCATION` use `eastus2`, `centralus`,
-   `westus2`, `westeurope` o `eastasia` (las únicas que admite Static Web Apps).
+   `config.env` (`LOCATION`). Por defecto está `canadacentral`.
 2. En el repositorio de GitHub, pestaña **Actions**, habilite los workflows.
 
 ## Paso 1. Publicar las imágenes (GitHub)
@@ -41,7 +44,7 @@ Si quiere ver la creación recurso por recurso en el portal, siga
 git clone https://github.com/Michu117/Food-Delivery-Microservices.git
 cd Food-Delivery-Microservices && git checkout azure-deploy
 cd infra
-nano config.env            # revise LOCATION, SWA_LOCATION y GHCR_OWNER
+nano config.env            # revise LOCATION y GHCR_OWNER
 chmod +x *.sh
 
 ./01-grupos-y-politicas.sh
@@ -52,7 +55,7 @@ STRIPE_SECRET_KEY=sk_test_xxx ./03-datos-y-secretos.sh
 ```
 
 Al final, `04-aplicaciones.sh` imprime la URL del gateway, las URLs de los
-frontends y los tokens de Static Web Apps.
+frontends y los tokens SAS para publicarlos.
 
 ## Paso 3. Publicar los frontends (GitHub)
 
@@ -62,10 +65,12 @@ En **Settings → Secrets and variables → Actions**:
 |---|---|---|
 | Variable | `GATEWAY_URL` | URL del gateway impresa por el paso 4 |
 | Variable | `STRIPE_PUBLISHABLE_KEY` | `pk_test_...` (opcional) |
-| Secreto | `AZURE_SWA_TOKEN_WEB` | token impreso por el paso 4 |
-| Secreto | `AZURE_SWA_TOKEN_DRIVER` | token impreso por el paso 4 |
+| Variable | `STORAGE_ACCOUNT_WEB` | nombre impreso por el paso 4 |
+| Variable | `STORAGE_ACCOUNT_DRIVER` | nombre impreso por el paso 4 |
+| Secreto | `AZURE_STORAGE_SAS_WEB` | token SAS impreso por el paso 4 |
+| Secreto | `AZURE_STORAGE_SAS_DRIVER` | token SAS impreso por el paso 4 |
 
-Luego Actions → **Frontends (Static Web Apps)** → *Run workflow*.
+Luego Actions → **Frontends (Azure Storage)** → *Run workflow*.
 
 ## Paso 4. Stripe (opcional, modo prueba)
 
@@ -120,7 +125,7 @@ La primera petición a cada servicio tarda unos segundos porque arranca desde ce
 ```
 
 También se puede hacer desde el portal: cada Container App → *Overview* → **Stop** / **Start**.
-Mientras está en pausa, Cosmos DB, Key Vault, la red y las Static Web Apps se mantienen
+Mientras está en pausa, Cosmos DB, Key Vault, la red y los frontends en Storage se mantienen
 (capas gratuitas o sin costo), así que reanudar tarda menos de un minuto.
 
 ## Dejar de gastar créditos

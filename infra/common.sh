@@ -44,8 +44,9 @@ KV="kv-$PREFIX-$SUFFIX"
 LOG="log-$PREFIX"
 CAE="cae-$PREFIX"
 IDENTITY="id-$PREFIX-apps"
-SWA_WEB="swa-$PREFIX-web"
-SWA_DRIVER="swa-$PREFIX-driver"
+# Frontends: sitios web estáticos en Storage (Static Web Apps no está en las regiones permitidas)
+ST_WEB="st${PREFIX}web$SUFFIX"
+ST_DRIVER="st${PREFIX}drv$SUFFIX"
 
 # Microservicios: nombre|imagen|puerto
 SERVICES=(
