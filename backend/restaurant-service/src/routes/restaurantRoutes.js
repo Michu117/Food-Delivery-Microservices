@@ -7,6 +7,30 @@ import authMiddleware from '../middleware/authMiddleware.js';
 import upload from '../middleware/uploadMiddleware.js';
 
 
+// Datos públicos (sin credenciales del administrador) para que los clientes
+// puedan ver los restaurantes sin ser Super Admin.
+const PUBLIC_FIELDS = 'name ownerName location contactNumber profilePicture availability';
+
+router.get('/public', async (req, res) => {
+  try {
+    const restaurants = await Restaurant.find({}, PUBLIC_FIELDS);
+    res.status(200).json(restaurants);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server Error' });
+  }
+});
+
+router.get('/public/:id', async (req, res) => {
+  try {
+    const restaurant = await Restaurant.findById(req.params.id, PUBLIC_FIELDS);
+    if (!restaurant) return res.status(404).json({ message: 'Restaurant not found' });
+    res.status(200).json(restaurant);
+  } catch (err) {
+    res.status(404).json({ message: 'Restaurant not found' });
+  }
+});
+
 // Register a new restaurant (with admin email and password)
 router.post('/register', upload.single('profilePicture'), async (req, res) => {
   const { name, ownerName, location, contactNumber, email, password } = req.body;

@@ -29,18 +29,14 @@ function FoodItemList() {
 
     const fetchRestaurantDetails = async () => {
       try {
+        // Datos públicos del restaurante (no requiere rol de Super Admin)
         const res = await axios.get(
-          `http://localhost:5002/api/superadmin/restaurant/${restaurantId}`,
-          {
-            headers: {
-              Authorization: `Bearer ${localStorage.getItem("token")}`,
-            },
-          }
+          `http://localhost:5002/api/restaurant/public/${restaurantId}`
         );
         setRestaurantName(res.data.name);
       } catch (err) {
         console.error(err);
-        setRestaurantName("PAAN PAAN");
+        setRestaurantName("Restaurante");
       }
     };
 
@@ -163,7 +159,10 @@ function FoodItemList() {
             >
               <img
                 src={
-                  food.image || "https://placehold.co/300x180?text=Food+Image"
+                  // Las imágenes las sirve restaurant-service (ruta relativa /uploads/...)
+                  food.image
+                    ? `http://localhost:5002${food.image}`
+                    : "https://placehold.co/300x180?text=Food+Image"
                 }
                 alt={food.name}
                 style={{

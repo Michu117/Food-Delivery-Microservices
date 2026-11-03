@@ -14,12 +14,8 @@ function CustomerHome() {
   useEffect(() => {
     const fetchRestaurants = async () => {
       try {
-        const token = localStorage.getItem('token');
-        const res = await fetch('http://localhost:5002/api/superadmin/restaurants', {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        });
+        // Lista pública de restaurantes (no requiere rol de Super Admin)
+        const res = await fetch('http://localhost:5002/api/restaurant/public');
 
         const data = await res.json();
         if (res.ok) {
@@ -115,7 +111,7 @@ function CustomerHome() {
               }}
             >
               <img
-                src={rest.imageURL || "https://via.placeholder.com/300x200?text=Restaurant+Image"}
+                src={rest.profilePicture ? `http://localhost:5002${rest.profilePicture}` : "https://placehold.co/300x200?text=Restaurant"}
                 alt={rest.name}
                 style={{
                   width: "100%",

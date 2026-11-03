@@ -143,10 +143,6 @@ router.get('/restaurant/:restaurantId', async (req, res) => {
     // Find food items for the given restaurant ID
     const foodItems = await FoodItem.find({ restaurant: restaurantId }).populate('restaurant', 'name location');
 
-    if (!foodItems.length) {
-      return res.status(404).json({ message: 'No food items found for this restaurant' });
-    }
-
     res.status(200).json(foodItems);
   } catch (err) {
     console.error(err);
